@@ -34,15 +34,15 @@ export class AccessControlPlus {
    * @param {(string | string[])} roleNames
    * @param {string} scope
    * @param {IContext} [context]
-   * @returns {Promise<IPermission>}
+   * @returns {Permission}
    * @memberof AccessControlPlus
    */
-  public async can(roleNames: string | string[], scope: string, context?: IContext): Promise<IPermission> {
+  public can(roleNames: string | string[], scope: string, context?: IContext): Permission {
     const [resourceName, actionName, field] = scope.split(':');
     let permission = new Permission();
     roleNames = isArray(roleNames) ? roleNames : [roleNames];
     for (const roleName of roleNames) {
-      await this.canRole(roleName, resourceName, actionName, field, context, permission);
+      this.canRole(roleName, resourceName, actionName, field, context, permission);
       if (permission.granted) {
         break;
       }
@@ -59,13 +59,13 @@ export class AccessControlPlus {
     }
   }
 
-  private async canRole(
+  private canRole(
     roleName: string,
     resourceName: string,
     actionName: string,
     field: string,
     context: IContext,
-    permission: Permission): Promise<boolean> {
+    permission: Permission): boolean {
       let role: IRoleDef, resource: IResourceDef, action: IScopeDef[];
       let testedRoleName, testedResourceName, testedActionName;
       [testedRoleName, role]  = this.getWithDefaultWildcard(roleName, this.roles);
@@ -76,7 +76,7 @@ export class AccessControlPlus {
           [testedActionName, action] = this.getWithDefaultWildcard(actionName, resource);
           if (action) {
             const actionPath = `${testedRoleName}:${testedResourceName}:${testedActionName}`;
-            const [granted, terminate] = await this.canAction(action, actionPath, field, context, permission);
+            const [granted, terminate] = this.canAction(action, actionPath, field, context, permission);
             if (terminate) {
               return granted;
             }
@@ -85,7 +85,7 @@ export class AccessControlPlus {
 
         if (role.inherits) {
           for (const inheritedRole of role.inherits) {
-            if (await this.canRole(inheritedRole, resourceName, actionName, field, context, permission)) {
+            if (this.canRole(inheritedRole, resourceName, actionName, field, context, permission)) {
               return true;
             }
           }
@@ -109,9 +109,9 @@ export class AccessControlPlus {
      * @param context
      * @returns test passed or failed
      */
-    private async testCondition(condition: ICondition, context: IContext): Promise<boolean> {
+    private testCondition(condition: ICondition, context: IContext): boolean {
       try {
-        return await condition(context);
+        return condition(context);
       } catch (e) {
         return false;
       }
@@ -129,14 +129,14 @@ export class AccessControlPlus {
    * @returns {Array<boolean, boolean>} granted, terminate
    * @memberof AccessControlPlus
    */
-  private async canAction(
+  private canAction(
     action: IScopeDef[], actionPath: string, field: string | void, context: IContext, permission: Permission
-  ): Promise<[boolean, boolean]> {
+  ): [boolean, boolean] {
     let granted, terminate = false;
     let scopeIndex = 0;
     for (const scope of action) {
       const scopePath = `${scope.effect}:${actionPath}:${scopeIndex}`;
-      [granted, terminate] = await this.canScope(scope, scopePath, field, context, permission);
+      [granted, terminate] = this.canScope(scope, scopePath, field, context, permission);
       if (terminate) {
         return [granted, terminate];
       }
@@ -146,31 +146,31 @@ export class AccessControlPlus {
     return [false, false];
   }
 
-  private async canScope(
+  private canScope(
     scope: IScopeDef,
     scopePath: string,
     field: string |  void,
     context: IContext,
     permission: Permission
-  ): Promise<[boolean, boolean]> {
+  ): [boolean, boolean] {
     if (scope.effect === 'grant') {
-      return await this.canGrantScope(scope, scopePath, field, context, permission);
+      return this.canGrantScope(scope, scopePath, field, context, permission);
     } else { // effect === 'deny'
-      return await this.canDenyScope(scope, scopePath, field, context, permission);
+      return this.canDenyScope(scope, scopePath, field, context, permission);
     }
   }
 
-  private async canGrantScope(
+  private canGrantScope(
     scope: IScopeDef,
     scopePath: string,
     field: string | void,
     context: IContext,
     permission: Permission
-  ): Promise<[boolean, boolean]> {
-    const [success, fields, permissionPath] = await this.testScope(scope, scopePath, field, context);
+  ): [boolean, boolean] {
+    const [success, fields, permissionPath] = this.testScope(scope, scopePath, field, context);
     if (success) {
       const constraint = (scope.constraint instanceof Function ?
-        await scope.constraint(context)
+        scope.constraint(context)
         : scope.constraint
       );
       permission.grant(permissionPath, fields, constraint);
@@ -181,14 +181,14 @@ export class AccessControlPlus {
     }
   }
 
-  private async canDenyScope(
+  private canDenyScope(
     scope: IScopeDef,
     scopePath: string,
     field: string | void,
     context: IContext,
     permission: Permission
-  ): Promise<[boolean, boolean]> {
-    const [success, fields, permissionPath] = await this.testScope(scope, scopePath, field, context);
+  ): [boolean, boolean] {
+    const [success, fields, permissionPath] = this.testScope(scope, scopePath, field, context);
     if (success) {
       permission.deny(permissionPath, fields);
       return [false, true]; // explicitly denied
@@ -197,15 +197,15 @@ export class AccessControlPlus {
     }
   }
 
-  private async testScope(
+  private testScope(
     scope: IScopeDef,
     scopePath: string,
     field: string | void,
     context: IContext
-  ): Promise<[boolean, IMap<boolean>, string]> {
-    const fields = await this.generateFields(scope, context);
+  ): [boolean, IMap<boolean>, string] {
+    const fields = this.generateFields(scope, context);
     const [matchedField, fieldTest] = field ? Permission.testField(field, fields) :  [undefined, true];
-    const conditionTest = fieldTest && await this.testCondition(scope.condition, context);
+    const conditionTest = fieldTest && this.testCondition(scope.condition, context);
     const permissionPath = this.permissionPath(scopePath, matchedField, fieldTest, scope.condition);
     const success = !!(fieldTest && conditionTest);
     return [success, fields, permissionPath];
@@ -216,9 +216,9 @@ export class AccessControlPlus {
     return `${scopePath}:${field ? field : ''}:${conditionName}`;
   }
 
-  private async generateFields(scope: IScopeDef, context: IContext): Promise<IFieldDefs> {
+  private generateFields(scope: IScopeDef, context: IContext): IFieldDefs {
     if (scope.fieldGenerator) {
-      return await scope.fieldGenerator(context);
+      return scope.fieldGenerator(context);
     } else {
       return {};
     }

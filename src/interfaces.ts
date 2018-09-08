@@ -1,6 +1,6 @@
 export type IContext = any; // tslint:disable-line
 export type IConstraint = any; // tslint:disable-line
-export type IConstraintGenerator = (context: IContext) => (Promise<any> | any); // tslint:disable-line
+export type IConstraintGenerator = (context: IContext) => any; // tslint:disable-line
 export type ICondition = (context: IContext) => boolean;
 export type IScopeRequest = string;
 
@@ -21,8 +21,8 @@ export type IExplanationGenerator = (permission: IPermission, context: IContext)
 
 export type IFieldDefs = IMap<boolean>;
 export type IEffect = 'grant' | 'deny';
-export type IFieldTest = (field: string | void, context?: IContext) => (Promise<boolean> | boolean);
-export type IFieldGenerator = (ctx: IContext) => (Promise<IFieldDefs> | IFieldDefs);
+export type IFieldTest = (field: string | void, context?: IContext) => boolean;
+export type IFieldGenerator = (ctx: IContext) => IFieldDefs;
 
 export interface IPermission {
   granted: IScopeRequest | void;
